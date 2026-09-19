@@ -1,45 +1,54 @@
-# c-stream-cipher v1.0.4
+# c-stream-cipher
 
-A high-throughput, deterministic stream cipher implementation engineered for volatile memory scrubbing, dynamic byte-shuffling, and cryptographic secure-purge file system overrides.
+## Overview
+This repository contains a simple stream cipher implementation written in 100% pure x86_64 Assembly (NASM) for Linux. The program encrypts or decrypts data by generating a pseudo-random key-stream based on a seed, and applying a bitwise XOR operation directly on the byte stream in memory. It also includes a secure memory purging loop to overwrite buffers after execution.
 
-##  Cryptographic Architecture & Primitive Mechanics
+---
 
-The **c-stream-cipher** infrastructure executes sub-millisecond dynamic encryption routines utilizing a customized pseudo-random number generator (PRNG) state machine. The framework is architected to perform localized key-stream generation aligned with dynamic hardware registers, achieving linear complexity processing for large block-level continuous data mutations.
+## How it Works
+The program processes data block by block or byte by byte directly inside the CPU registers for maximum speed and control.
 
-### Cipher Pipeline Matrix
+### Step-by-Step Flow:
+1. **State Initialization:** Takes a symmetric key seed and sets up an internal state counter to generate a pseudo-random stream of bytes.
+2. **Bitwise Shuffling:** Uses shifts, additions, and XOR operations on registers to morph the internal key state for every processed byte.
+3. **XOR Transformation:** Applies a bitwise XOR between the raw input byte stream and the generated key-stream byte. This single operation serves both for encryption and decryption.
+4. **Memory Sanitization:** Runs a secure-purge loop over the data buffers immediately after processing, overwriting the internal state with zeroes to prevent data recovery from RAM.
 
-[Input Plaintext Stream] ──────► (Bitwise XOR Transformation) ───► [Encrypted Volatile Buffer]▲│[Symmetric Entropy Key Seed] ──► [Dynamic State Shuffling Ring] ─┘
-1. **State Shuffling Core:** Instantiates an internal dynamic permutation grid to constantly morph internal key matrices based on runtime execution offsets, minimizing mathematical pattern leakage.
-2. **Volatile Scrubbing Protocol:** Implements strict data remanence countermeasures by executing deterministic byte-level over-writes (Zero-fill and pseudo-random injection patterns) across allocated heap spaces immediately post-encryption.
+---
 
-##  Technical Axioms & Memory Isolation Parameters
-* **Bitwise Symmetric Execution:** Leverages native pointer arithmetic and optimal low-latency bitwise `XOR` logic to bypass high-level instruction overhead during file mutation tasks.
-* **Anti-Remanence Overrides:** Enforces memory sanitization patterns directly within allocated file description pipelines, completely purging leftover caching residuals.
-* **Zero-Dependency Core:** Operates exclusively using standard system memory primitives and architectural abstractions, minimizing surface execution vulnerabilities from external link libraries.
-* **Deterministic File Demolition:** Combines custom stream obfuscation with severe localized multi-pass block destruction algorithms to enforce definitive anti-forensic secure deletion boundaries.
+## Compilation and Build (Makefile)
+The build process uses a minimal Makefile to compile the pure assembly file without linking any C libraries.
 
-##  Deployment Specifications & Verification Invocation
-
-### Target Requirements
-
-* Compiler Infrastructure: POSIX-Compliant GCC Toolkit / Clang Engine.
-* Runtime Environment: Agnostic UNIX-like or Windows Native Command Interface.
-
-### Environment Mobilization
+### Build and Run Instructions
 ```bash
-git clone https://github.com
-cd Boutaba-StreamCipher-Purge
+# Compile and link the assembler code automatically
+make
+
+# Run the stream cipher binary
+./stream_cipher
+
+# Clean build artifacts
+make clean
 ```
 
-### Direct Compilation Sequence
-Compile the stream engine under optimization layer-3 flags (`-O3`) to achieve high operational throughput execution vectors:
-```bash
-gcc -O3 main.c -o StreamCipherPurge
-./StreamCipherPurge --target <file_path> --seed <entropy_parameter>
+---
+
+## Project Structure (Makefile Code)
+This is the Makefile used to track and compile the source file natively:
+
+```makefile
+ASM=nasm
+ASMFLAGS=-f elf64
+LD=ld
+
+all: stream_cipher
+
+stream_cipher: main.o
+	\$(LD) main.o -o stream_cipher
+
+main.o: main.asm
+	(ASM) (ASMFLAGS) main.asm -o main.o
+
+clean:
+	rm -f *.o stream_cipher
 ```
-
-##  Compliance & Academic Framework Disclaimer
-
-This cryptographic utility was independently engineered by **Boutaba Motezeballah** for academic research into stream cipher design patterns, dynamic memory sanitization protocols, and forensic-resistant data purging configurations. 
-
-This framework is distributed strictly under preventative research guidelines. The developer assumes no technical or legal liability for accidental operational block-level data loss or misuse within external production storage setups.
