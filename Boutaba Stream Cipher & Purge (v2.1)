@@ -1,110 +1,167 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+section .data
 
-#define BUFFER_SIZE 4096
-#define KEY_SIZE 128
+section .bss
+    buffer       resb 4096
+    source_file  resb 256
+    output_file  resb 256
+    secret_key   resb 128
+    mode         resb 4
+    src_fd       resq 1
+    dest_fd      resq 1
+    key_len      resq 1
 
-void advanced_cipher_engine(const char *input_path, const char *output_path, const char *secret_key, int mode) {
-    FILE *src = fopen(input_path, "rb");
-    FILE *dest = fopen(output_path, "wb");
-    
-    if (!src || !dest) {
-        printf("[-] Critical Matrix Error: Cannot bind target file vectors. Access Denied.\n");
-        if (src) fclose(src);
-        if (dest) fclose(dest);
-        return;
-    }
+section .text
+    global _start
 
-    // حجز بافر ديناميكي في الـ Heap لتسريع النقل والـ Streaming 100%
-    unsigned char *buffer = (unsigned char *)malloc(BUFFER_SIZE);
-    if (!buffer) {
-        printf("[-] Memory Allocation Failed inside Heap Matrix.\n");
-        fclose(src); fclose(dest);
-        return;
-    }
+_start:
+    mov rax, 0
+    mov rdi, 0
+    mov rsi, mode
+    mov rdx, 4
+    syscall
 
-    size_t key_len = strlen(secret_key);
-    
-    // حماية إضافية لحالة عدم إدخال مفتاح سري
-    if (key_len == 0) {
-        printf("[-] Critical Failure: Secret key length is zero. Halting Engine.\n");
-        free(buffer); fclose(src); fclose(dest);
-        return;
-    }
+    mov rax, 0
+    mov rdi, 0
+    mov rsi, source_file
+    mov rdx, 256
+    syscall
+    call .strip_newline
 
-    size_t key_index = 0;
-    size_t read_bytes;
+    mov rax, 0
+    mov rdi, 0
+    mov rsi, output_file
+    mov rdx, 256
+    syscall
+    call .strip_newline
 
-    printf("[*] Core Crypto Phase: Executing stream injection... \n");
+    mov rax, 0
+    mov rdi, 0
+    mov rsi, secret_key
+    mov rdx, 128
+    syscall
+    call .strip_newline
+    mov [key_len], rax
 
-    while ((read_bytes = fread(buffer, 1, BUFFER_SIZE, src)) > 0) {
-        for (size_t i = 0; i < read_bytes; i++) {
-            // التكتيك المريgل: الـ Salt يدور بين 0 و 6 لحماية تكرار البايتات
-            unsigned char salt_factor = (unsigned char)(key_index % 7);
-            
-            // العملية الرياضية المتناظرة الصحيحة 100% للتشفير والفك معاً بلا Overflow
-            buffer[i] = buffer[i] ^ (secret_key[key_index] ^ salt_factor);
-            
-            key_index = (key_index + 1) % key_len;
-        }
-        fwrite(buffer, 1, read_bytes, dest);
-    }
+    cmp rax, 4
+    jl .exit_error
 
-    free(buffer);
-    fclose(src);
-    fclose(dest);
+    mov rax, 2
+    mov rdi, source_file
+    mov rsi, 0
+    mov rdx, 0
+    syscall
+    cmp rax, 0
+    jl .exit_error
+    mov [src_fd], rax
 
-    // OpSec الصارمة: تدمير الملف الأصلي كليا بعد التشفير الناجح فقط (Mode 1)
-    if (mode == 1) {
-        printf("[*] OpSec Enforcement: Shredding and purging target source matrix... \n");
-        remove(input_path); 
-    }
+    mov rax, 2
+    mov rdi, output_file
+    mov rsi, 577
+    mov rdx, 432
+    syscall
+    cmp rax, 0
+    jl .close_src_error
+    mov [dest_fd], rax
 
-    printf("[+] Operational Crypto Success: Cipher sequence synchronized seamlessly! \n");
-}
+    xor r9, r9
+    xor r10, r10
 
-int main() {
-    char source_file[256];
-    char output_file[256];
-    char secret_key[KEY_SIZE];
-    int mode;
+.read_loop:
+    mov rax, 0
+    mov rdi, [src_fd]
+    mov rsi, buffer
+    mov rdx, 4096
+    syscall
+    mov r11, rax
+    cmp r11, 0
+    jle .cipher_complete
 
-    printf("=================================================================\n");
-    printf("                     c-stream-cipher                        \n");
-    printf("=================================================================\n");
-    printf("1.  Secure Encrypt & Shred Source \n");
-    printf("2.  Decrypt & Restore Data Stream \n");
-    printf("================================================================: ");
-    if (scanf("%d", &mode) != 1 || (mode != 1 && mode != 2)) {
-        printf("[-] Invalid Matrix Option. System Halting.\n");
-        return 1;
-    }
-    getchar(); // تنظيف البافر تع الإدخال
+    xor rsi, rsi
+.process_bytes:
+    cmp rsi, r11
+    jge .write_block
 
-    printf("🤖 مسار الملف المستهدف: ");
-    fgets(source_file, sizeof(source_file), stdin);
-    source_file[strcspn(source_file, "\n")] = 0;
+    mov rax, r9
+    xor rdx, rdx
+    mov rbx, 7
+    div rbx
+    mov r10, rdx
 
-    printf("🤖 اسم ومسار الملف الجديد: ");
-    fgets(output_file, sizeof(output_file), stdin);
-    output_file[strcspn(output_file, "\n")] = 0;
+    movzx rbx, byte [secret_key + r9]
+    xor rbx, r10
+    xor byte [buffer + rsi], bl
 
-    printf("🤖 Secret Key (لازم كثر من 4 حروف): ");
-    fgets(secret_key, sizeof(secret_key), stdin);
-    secret_key[strcspn(secret_key, "\n")] = 0;
+    inc r9
+    mov rax, r9
+    xor rdx, rdx
+    mov rbx, [key_len]
+    div rbx
+    mov r9, rdx
 
-    if (strlen(secret_key) < 4) {
-        printf("[-] OpSec Warning: Secret key is too weak. Matrix deployment denied.\n");
-        return 1;
-    }
+    inc rsi
+    jmp .process_bytes
 
-    advanced_cipher_engine(source_file, output_file, secret_key, mode);
-    
-    printf("=================================================================\n");
-    printf(" STATUS: COMPLETE PURE | INFRASTRUCTURE LOCKED DOWN 100%%         \n");
-    printf("=================================================================\n");
+.write_block:
+    mov rax, 1
+    mov rdi, [dest_fd]
+    mov rsi, buffer
+    mov rdx, r11
+    syscall
+    jmp .read_loop
 
-    return 0;
-}
+.cipher_complete:
+    mov rax, 3
+    mov rdi, [src_fd]
+    syscall
+    mov rax, 3
+    mov rdi, [dest_fd]
+    syscall
+
+    xor rsi, rsi
+.purge_loop:
+    cmp rsi, 4096
+    jge .check_shred
+    mov byte [buffer + rsi], 0
+    inc rsi
+    jmp .purge_loop
+
+.check_shred:
+    movzx rax, byte [mode]
+    cmp rax, '1'
+    jne .exit_success
+
+    mov rax, 87
+    mov rdi, source_file
+    syscall
+
+.exit_success:
+    mov rax, 60
+    xor rdi, rdi
+    syscall
+
+.close_src_error:
+    mov rax, 3
+    mov rdi, [src_fd]
+    syscall
+.exit_error:
+    mov rax, 60
+    mov rdi, 1
+    syscall
+
+.strip_newline:
+    xor rcx, rcx
+.loop_strip:
+    cmp rcx, rax
+    jge .done_strip
+    mov dl, byte [rsi + rcx]
+    cmp dl, 10
+    je .found_nl
+    cmp dl, 13
+    je .found_nl
+    inc rcx
+    jmp .loop_strip
+.found_nl:
+    mov byte [rsi + rcx], 0
+.done_strip:
+    mov rax, rcx
+    ret
